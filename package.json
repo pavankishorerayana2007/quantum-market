@@ -1,0 +1,15 @@
+{
+  "name": "quantum-market",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Quantum Market: marketplace with buyers, shop owners and an admin. Static frontend + Vercel serverless API + PostgreSQL.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "migrate": "node scripts/migrate.js",
+    "create-admin": "node scripts/create-admin.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}
