@@ -18,6 +18,8 @@ create table if not exists users (
   token_version integer not null default 0,
   fail_count integer not null default 0,
   locked_until text,
+  pay_upi text,
+  pay_qr text,
   invite_hash text,
   invite_exp text,
   created_at text not null
@@ -130,6 +132,21 @@ create table if not exists notifications (
   is_read integer not null default 0
 );
 create index if not exists notif_user_idx on notifications(role, user_ref);
+
+create table if not exists images (
+  id text primary key,
+  kind text not null check (kind in ('qr')),
+  owner_id text not null,
+  data text not null,
+  created_at text not null
+);
+
+create table if not exists qr_access (
+  buyer_id text not null,
+  owner_id text not null,
+  at text not null,
+  primary key (buyer_id, owner_id)
+);
 
 create table if not exists store_status (
   owner_id text primary key references users(id),
