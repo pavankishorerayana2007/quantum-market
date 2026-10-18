@@ -7,7 +7,6 @@ module.exports = handler(async (req, res) => {
   const env = {
     DATABASE_URL: !!process.env.DATABASE_URL,
     AUTH_SECRET: !!process.env.AUTH_SECRET && process.env.AUTH_SECRET.length >= 32,
-    UPI_ID: !!process.env.UPI_ID,
   };
   let database = 'not configured';
   if (env.DATABASE_URL) {
