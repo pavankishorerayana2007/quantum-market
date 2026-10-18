@@ -185,6 +185,8 @@ test('10. delivery, cash confirmation, commission rules, payments verification',
   const ow = (await owner.state()).json;
   assert.equal(ow.OR.find((o) => o.id === oid).rate, 5);
   const ref = 'UTR12345678';
+  assert.equal((await owner.act('submitCommission', { amt: 10, ref, proof: PNG })).status, 409, 'admin has no QR yet');
+  assert.equal((await admin.act('savePayment', { upi: 'admin@testbank', img: PNG })).status, 200);
   assert.equal((await owner.act('submitCommission', { amt: 30, ref, proof: PNG })).status, 409, 'more than owed');
   assert.equal((await owner.act('submitCommission', { amt: 10, ref, proof: PNG })).status, 200);
   assert.equal((await owner.act('submitCommission', { amt: 5, ref, proof: PNG })).status, 409, 'duplicate reference');
@@ -208,30 +210,32 @@ test('10. delivery, cash confirmation, commission rules, payments verification',
   assert.equal((await admin.state()).json.RATE, 3);
 });
 
-test('11. online payment: reference + screenshot required, duplicates blocked, admin approval places order', async () => {
+test('11. online payment: shop needs a QR, reference + screenshot required, OWNER approves', async () => {
   const admin = new Client(); await admin.auth({ a: 'login', email: 'admin@test.dev', password: 'AdminPass-12345' });
   const buyer = await buyerClient('online@test.dev');
   const owner = new Client(); await owner.auth({ a: 'login', email: 'owner1@test.dev', password: 'OwnerPass-123' });
   await owner.act('addProduct', product({ n: 'Online Item', stock: 10 })); // Basmati is sold out by now
   const pr = (await buyer.state()).json.PR.find((p) => p.n === 'Online Item');
   const base = { pm: 'on', addr: ADDR, lines: [{ pid: pr.id, q: 1 }] };
+  const noQr = await buyer.act('placeOrder', { ...base, utr: 'ONLINE00001', proof: PNG });
+  assert.equal(noQr.status, 409); assert.match(noQr.json.error, /not set up online payment/);
+  assert.equal((await owner.act('savePayment', { upi: 'owner1@testbank', img: PNG })).status, 200);
   assert.equal((await buyer.act('placeOrder', base)).status, 400, 'needs UTR');
   assert.equal((await buyer.act('placeOrder', { ...base, utr: 'UTR12345678', proof: PNG })).status, 409, 'reference used earlier');
   assert.equal((await buyer.act('placeOrder', { ...base, utr: 'ONLINE00001', proof: 'bad' })).status, 400);
   assert.equal((await buyer.act('placeOrder', { ...base, utr: 'ONLINE00001', proof: PNG })).status, 200);
   let o = (await buyer.state()).json.OR[0];
   assert.equal(o.st, 'Awaiting Payment'); assert.equal(o.pay, 'Awaiting Verification');
-  const bp = (await admin.state()).json.BP.find((b) => b.oid === o.id);
+  const bp = (await owner.state()).json.BP.find((b) => b.oid === o.id);
   assert.equal((await buyer.act('verifyBuyerPayment', { id: bp.id, ok: 1 })).status, 403);
-  assert.equal((await admin.act('verifyBuyerPayment', { id: bp.id, ok: 1 })).status, 200);
+  assert.equal((await admin.act('verifyBuyerPayment', { id: bp.id, ok: 1 })).status, 403, 'admin cannot approve buyer payments');
+  assert.equal((await owner.act('verifyBuyerPayment', { id: bp.id, ok: 1 })).status, 200);
   o = (await buyer.state()).json.OR[0];
   assert.equal(o.st, 'Placed'); assert.equal(o.pay, 'Paid');
-  // rejected proof -> buyer can pay again
-  const pr2 = pr;
-  await buyer.act('placeOrder', { ...base, lines: [{ pid: pr2.id, q: 1 }], utr: 'ONLINE00002', proof: PNG });
+  await buyer.act('placeOrder', { ...base, utr: 'ONLINE00002', proof: PNG });
   const o2 = (await buyer.state()).json.OR[0];
-  const bp2 = (await admin.state()).json.BP.find((b) => b.oid === o2.id);
-  await admin.act('verifyBuyerPayment', { id: bp2.id, ok: 0 });
+  const bp2 = (await owner.state()).json.BP.find((b) => b.oid === o2.id);
+  await owner.act('verifyBuyerPayment', { id: bp2.id, ok: 0 });
   assert.equal((await buyer.state()).json.OR[0].pay, 'Failed');
   assert.equal((await buyer.act('submitProof', { id: o2.id, utr: 'ONLINE00003', proof: PNG })).status, 200);
   assert.equal((await buyer.act('submitProof', { id: o2.id, utr: 'ONLINE00004', proof: PNG })).status, 409, 'already awaiting verification');

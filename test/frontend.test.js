@@ -92,11 +92,13 @@ test('frontend: every screen renders for every role with real server data and wi
   const prods = (await buyer.state()).json.PR;
   const rice = prods.find((p) => p.n === 'Rice'), dal = prods.find((p) => p.n === 'Loose Dal');
   assert.equal((await buyer.act('placeOrder', { pm: 'cod', addr: ADDR, lines: [{ pid: rice.id, q: 3 }, { pid: dal.id, q: 0.25 }] })).status, 200);
+  await owner.act('savePayment', { upi: 'shop@testbank', img: PNG });
   assert.equal((await buyer.act('placeOrder', { pm: 'on', addr: ADDR, lines: [{ pid: rice.id, q: 1 }], utr: 'FRONT000001', proof: PNG })).status, 200);
   const oid = (await buyer.state()).json.OR.find((o) => o.pm === 'cod').id;
   await owner.act('advanceOrder', { id: oid });
   await buyer.act('confirmCash', { id: oid });
   await owner.act('pauseStore', { msg: 'Short break for stock-taking' });
+  await admin.act('savePayment', { upi: 'admin@testbank', img: PNG });
   await owner.act('submitCommission', { amt: 1, ref: 'COMM0000001', proof: PNG });
   for (const [who, c] of [['admin', admin], ['owner', owner], ['buyer', buyer]]) {
     const r = await render((await c.state()).json, who);
